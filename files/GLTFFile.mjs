@@ -4,55 +4,20 @@ import { S3Texture } from "./S3Texture.mjs";
 // https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#gltf-basics
 // https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md
 
-// type definitions
-class ComponentType extends Number {
-    
-    get byteLength() {
-        return this._byteLength;
-    }
-
-    constructor(type, n, byteLength) {
-        super(n);
-
-        this._type = type;
-        this._byteLength = byteLength;
-    }
-}
-
-class Type extends String {
-
-    get components() {
-        return this._components;
-    }
-
-    constructor(type, components) {
-        super(type);
-
-        this._components = components;
-    }
-}
-
-// type
-
-const type = {
-    BYTE: new ComponentType("BYTE", 5120, 1),
-    UNSIGNED_BYTE: new ComponentType("UNSIGNED_BYTE", 5121, 1),
-    SHORT: new ComponentType("SHORT", 5122, 2),
-    UNSIGNED_SHORT: new ComponentType("UNSIGNED_SHORT", 5123, 2),
-    UNSIGNED_INT: new ComponentType("UNSIGNED_INT", 5125, 4),
-    FLOAT: new ComponentType("FLOAT", 5126, 4),
-    SCALAR: new Type("SCALAR", 1),
-    VEC2: new Type("VEC2", 2),
-    VEC3: new Type("VEC3", 3),
-    VEC4: new Type("VEC4", 4),
-    MAT2: new Type("MAT2", 4),
-    MAT3: new Type("MAT2", 9),
-    MAT4: new Type("MAT4", 16),
-}
-
 export default class GLTFFile extends TextFile {
 
     static fromGeometry(geometry = {}) {
+        /* geometry:
+            vertecies: [0, 0, 0],
+            uvs: [0, 0, 0],
+            normals: [0, 0, 0],
+            indices: [0, 0, 0],
+            position: [0, 0, 0],
+            rotation: [0, 0, 0],
+            scale: [0, 0, 0],
+            material: {}
+        */
+
         const gltf = new this();
 
         for(let key in geometry) {
@@ -71,18 +36,6 @@ export default class GLTFFile extends TextFile {
                 gltf.rootNode.children.push(parent);
 
                 for(let geo of geometryList) {
-
-                    /* geometry:
-                        vertecies: [0, 0, 0],
-                        uvs: [0, 0, 0],
-                        normals: [0, 0, 0],
-                        indices: [0, 0, 0],
-                        position: [0, 0, 0],
-                        rotation: [0, 0, 0],
-                        scale: [0, 0, 0],
-                        materials: [ ... ]
-                    */
-
                     gltf.addObject(geo, parent);
                 }
             }
@@ -91,23 +44,84 @@ export default class GLTFFile extends TextFile {
         return gltf;
     }
 
-    static fromFile(gLTFFile) {
-        // read gltf file and create instance
+    static async fromBlob(gLTFFile) {
+        if(gLTFFile instanceof Blob) {
+            const fileString = await gLTFFile.text();
+            const jsonData = JSON.parse(fileString);
+            const gltfFile = new GLTFFile(jsonData);
+            return gltfFile;
+        } else {
+            throw new Error('Not a blob');
+        }
     }
 
-    get loaded() {
+    get generator() {
+        return this.asset.asset.generator;
+    }
+
+    get copyright() {
+        return this.asset.asset.copyright;
+    }
+
+    get version() {
+        return this.asset.asset.version;
+    }
+
+    get nodes() {
+        return this.asset.nodes;
+    }
+
+    get meshes() {
+        return this.asset.meshes;
+    }
+
+    get materials() {
+        return this.asset.materials;
+    }
+
+    get textures() {
+        return this.asset.textures;
+    }
+
+    get images() {
+        return this.asset.images;
+    }
+
+    get accessors() {
+        return this.asset.accessors;
+    }
+
+    get bufferViews() {
+        return this.asset.bufferViews;
+    }
+
+    get buffers() {
+        return this.asset.buffers;
+    }
+
+    get _loaded() {
         return this.loadedBufferCount == this.asset.buffers.length;
     }
 
-    constructor() {
+    get rootNode() {
+        return this.asset.nodes[0];
+    }
+
+    constructor(jsonGltfData) {
         super();
+
+        if(jsonGltfData) {
+            if(!jsonGltfData.asset) {
+                throw new Error('Missing "asset" section.');
+            }
+        }
 
         this.loadedBufferCount = 0;
         
-        this.asset = {
+        this.asset = jsonGltfData || {
             asset: {
                 copyright: "2020 (c) Valve Software",
-                generator: "Khronos glTF @uncut/file-format-lib v1.0.0",
+                generator: "gltf-file-lib v1.0.0",
                 version: "2.0"
             },
             scene: 0,
@@ -142,8 +156,135 @@ export default class GLTFFile extends TextFile {
         };
     }
 
-    get rootNode() {
-        return this.asset.nodes[0];
+    getBufferByAccessor(accessor) {
+        const bufferView = accessor.bufferView;
+        const byteOffset = accessors.byteOffset;
+        const count = accessor.count;
+        const max = accessor.max;
+        const min = accessor.min;
+
+        const componentType = TYPE[accessor.componentType];
+        const type = TYPE[accessor.type];
+
+        const buffer = this.getBufferByView(bufferView);
+        const arrayBuffer = buffer.slice(byteOffset);
+
+        for(let i = 0; i < count; i++) {
+            
+        }
+
+        // TODO: convert into Float32Array etc.
+    }
+
+    getBufferByView(bufferView) {
+        const buffer = this.buffers[bufferView.buffer];
+
+        const byteOffset = bufferView.byteOffset;
+        const byteLength = bufferView.byteLength;
+
+        const byteStride = bufferView.byteStride;
+        // TODO: use byteStride
+
+        const bufferByteLength = buffer.byteLength;
+        const uri = buffer.uri;
+
+        if(uri.match("data:application/octet-stream;base64")) {
+            const base64 = uri.split(',')[1];
+            const decoder = new TextEncoder();
+    
+            return decoder.encode(base64).buffer.slice(byteOffset, byteOffset + byteLength);
+        }
+    }
+
+    getTexture(tex) {
+        const texture = this.textures[tex.index];
+        const texCoord = tex.texCoord;
+        const scale = tex.scale;
+
+        const image = this.images[texture.source];
+        const sampler = texture.sampler;
+
+        const uri = image.uri;
+        const bufferView = image.bufferView;
+        const mimeType = image.mimeType;
+
+        const textureImage = new Image();
+        textureImage.decoding = 'sync';
+
+        if(uri) {
+            textureImage.src = uri;
+        } else if(bufferView) {
+            const blob = new Blob([ this.getBufferByView(bufferView) ], mimeType);
+            textureImage.srcObject = blob;
+        }
+        
+        return textureImage;
+    }
+
+    getPBRMaterial(material) {
+        const name = material.name;
+        const normalTexture = material.normalTexture;
+        const pbrMetallicRoughness = material.pbrMetallicRoughness;
+
+        const baseColorFactor = pbrMetallicRoughness.baseColorFactor;
+        const metallicFactor = pbrMetallicRoughness.metallicFactor;
+        const roughnessFactor = pbrMetallicRoughness.roughnessFactor;
+
+        const baseColorTexture = pbrMetallicRoughness.baseColorTexture;
+        const metallicRoughnessTexture = pbrMetallicRoughness.metallicRoughnessTexture;
+
+        return {
+            name,
+            baseColor,
+            metallic,
+            roughness,
+
+            texture: this.getTexture(baseColorTexture),
+            normalTexture: this.getTexture(normalTexture),
+            metallicRoughnessTexture: this.getTexture(metallicRoughnessTexture),
+        }
+    }
+
+    getGeometry() {
+        const geo = [];
+
+        for(let node of this.nodes) {
+            // node
+            const name = node.name;
+            const rotation = node.rotation;
+            const scale = node.scale;
+            const translation = node.translation;
+            // mesh
+            const mesh = this.meshes[node.mesh];
+            const primitives = mesh.primitives;
+            // primitives
+            for(let primitive of primitives) {
+                const mode = primitive.mode;
+                const attributes = primitives.attributes;
+                const material = this.materials[primitives.material];
+                const indices = this.accessors[primitives.indices];
+
+                const normal = this.accessors[attributes['NORMAL']];
+                const position = this.accessors[attributes['POSITION']];
+                const texcoord = this.accessors[attributes['TEXCOORD_0']];
+
+                const geometry = {
+                    name: name,
+                    vertecies: this.getBufferByAccessor(position),
+                    uvs: this.getBufferByAccessor(texcoord),
+                    normals: this.getBufferByAccessor(normal),
+                    indices: this.getBufferByAccessor(indices),
+                    position: translation,
+                    rotation: rotation,
+                    scale: scale,
+                    material: this.getPBRMaterial(material),
+                }
+
+                geo.push(geometry);
+            }
+        }
+
+        return geo;
     }
 
     createBuffer(bufferArray) {
@@ -158,12 +299,12 @@ export default class GLTFFile extends TextFile {
             gltfBuffer.uri += Buffer.from(bufferArray.buffer).toString('base64');
             this.loadedBufferCount++;
 
-            if(this.loaded) {
+            if(this._loaded) {
                 this._finalize();
             }
         } else {
             // chrome
-            const blob = new Blob([ bufferArray.buffer ], {type : 'binary'});
+            const blob = new Blob([ bufferArray.buffer ], { type : 'binary' });
 
             const reader = new FileReader();
             reader.onload = () => {
@@ -173,7 +314,7 @@ export default class GLTFFile extends TextFile {
                 gltfBuffer.uri += base64;
                 this.loadedBufferCount++;
 
-                if(this.loaded) {
+                if(this._loaded) {
                     this._finalize();
                 }
             };
@@ -243,12 +384,12 @@ export default class GLTFFile extends TextFile {
         const vertexBufferIndex = this.createBuffer(vertexBuffer);
 
         // buffer views
-        let byteStride =  type.VEC3.components * type.FLOAT.byteLength +
-                            type.VEC2.components * type.FLOAT.byteLength +
-                            type.VEC3.components * type.FLOAT.byteLength;
+        let byteStride =  TYPE.VEC3.components * TYPE.FLOAT.byteLength +
+                            TYPE.VEC2.components * TYPE.FLOAT.byteLength +
+                            TYPE.VEC3.components * TYPE.FLOAT.byteLength;
 
         if(color) {
-            byteStride += type.VEC4.components * type.FLOAT.byteLength;
+            byteStride += TYPE.VEC4.components * TYPE.FLOAT.byteLength;
         }
 
         const indexBufferViewIndex = this.createBufferView({
@@ -264,7 +405,7 @@ export default class GLTFFile extends TextFile {
             byteStride: byteStride,
         });
 
-        const texBufferByteOffset = type.VEC3.components * type.FLOAT.byteLength;
+        const texBufferByteOffset = TYPE.VEC3.components * TYPE.FLOAT.byteLength;
         const texBufferViewIndex = this.createBufferView({
             buffer: vertexBufferIndex, 
             byteOffset: texBufferByteOffset, 
@@ -272,7 +413,7 @@ export default class GLTFFile extends TextFile {
             byteStride: byteStride,
         });
 
-        const normalBufferByteOffset = texBufferByteOffset + type.VEC2.components * type.FLOAT.byteLength;
+        const normalBufferByteOffset = texBufferByteOffset + TYPE.VEC2.components * TYPE.FLOAT.byteLength;
         const normBufferViewIndex = this.createBufferView({
             buffer: vertexBufferIndex, 
             byteOffset: normalBufferByteOffset,
@@ -284,7 +425,7 @@ export default class GLTFFile extends TextFile {
         let colorBufferViewIndex;
 
         if(color) {
-            colorBufferByteOffset = normalBufferByteOffset + type.VEC3.components * type.FLOAT.byteLength;
+            colorBufferByteOffset = normalBufferByteOffset + TYPE.VEC3.components * TYPE.FLOAT.byteLength;
             colorBufferViewIndex = this.createBufferView({
                 buffer: vertexBufferIndex, 
                 byteOffset: colorBufferByteOffset,
@@ -296,44 +437,44 @@ export default class GLTFFile extends TextFile {
         // accessors
         const indexAccessor = this.createAccessor({
             bufferView: indexBufferViewIndex,
-            componentType: type.UNSIGNED_INT,
+            componentType: TYPE.UNSIGNED_INT,
             count: indexCount,
-            type: type.SCALAR,
+            type: TYPE.SCALAR,
         });
 
         const positionAccessor = this.createAccessor({
             bufferView: posBufferViewIndex,
-            componentType: type.FLOAT,
+            componentType: TYPE.FLOAT,
             count: vertexCount,
             max: [ 1000.0, 1000.0, 1000.0 ],
             min: [ -1000.0, -1000.0, -1000.0 ],
-            type: type.VEC3,
+            type: TYPE.VEC3,
         });
 
         const textureAccessor = this.createAccessor({
             bufferView: texBufferViewIndex,
-            componentType: type.FLOAT,
+            componentType: TYPE.FLOAT,
             count: vertexCount,
-            type: type.VEC2,
+            type: TYPE.VEC2,
         });
 
         const normalAccessor = this.createAccessor({
             bufferView: normBufferViewIndex,
-            componentType: type.FLOAT,
+            componentType: TYPE.FLOAT,
             count: vertexCount,
             max: [ 1, 1, 1 ],
             min: [ -1, -1, -1 ],
-            type: type.VEC3,
+            type: TYPE.VEC3,
         });
 
         if(color) {
             const colorAccessor = this.createAccessor({
                 bufferView: colorBufferViewIndex,
-                componentType: type.FLOAT,
+                componentType: TYPE.FLOAT,
                 count: vertexCount,
                 max: [ 1, 1, 1, 1 ],
                 min: [ 0, 0, 0, 0 ],
-                type: type.VEC4,
+                type: TYPE.VEC4,
             });
 
             return {
@@ -586,7 +727,7 @@ export default class GLTFFile extends TextFile {
 
     async toString() {
         return new Promise((resolve) => {
-            if(this.loaded) {
+            if(this._loaded) {
                 resolve(JSON.stringify(this.asset, null, '\t'));
             } else {
                 this._finalize = () => {
@@ -631,4 +772,50 @@ function eulerDegreeToQuaternion([ roll, pitch, yaw ]) { // [ x, y, z ]
         Math.floor(q.z * 100000) / 100000, 
         Math.floor(q.w * 100000) / 100000,
     ];
+}
+
+// type definitions
+class ComponentType extends Number {
+    
+    get byteLength() {
+        return this._byteLength;
+    }
+
+    constructor(type, n, byteLength) {
+        super(n);
+
+        this._type = type;
+        this._byteLength = byteLength;
+    }
+}
+
+class Type extends String {
+
+    get components() {
+        return this._components;
+    }
+
+    constructor(type, components) {
+        super(type);
+
+        this._components = components;
+    }
+}
+
+// type
+
+const TYPE = {
+    BYTE: new ComponentType("BYTE", 5120, 1),
+    UNSIGNED_BYTE: new ComponentType("UNSIGNED_BYTE", 5121, 1),
+    SHORT: new ComponentType("SHORT", 5122, 2),
+    UNSIGNED_SHORT: new ComponentType("UNSIGNED_SHORT", 5123, 2),
+    UNSIGNED_INT: new ComponentType("UNSIGNED_INT", 5125, 4),
+    SCALAR: new Type("SCALAR", 1),
+    FLOAT: new ComponentType("FLOAT", 5126, 4),
+    VEC2: new Type("VEC2", 2),
+    VEC3: new Type("VEC3", 3),
+    VEC4: new Type("VEC4", 4),
+    MAT2: new Type("MAT2", 4),
+    MAT3: new Type("MAT2", 9),
+    MAT4: new Type("MAT4", 16),
 }
