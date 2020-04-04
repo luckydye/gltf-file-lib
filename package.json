@@ -1,0 +1,22 @@
+{
+  "name": "gltf-file-lib",
+  "version": "1.0.0",
+  "description": "",
+  "module": "./index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luckydye/gltf-file-lib.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/luckydye/gltf-file-lib/issues"
+  },
+  "homepage": "https://github.com/luckydye/gltf-file-lib#readme",
+  "dependencies": {
+    "binary-file-lib": "git+https://github.com/luckydye/binary-file-lib.git"
+  }
+}
